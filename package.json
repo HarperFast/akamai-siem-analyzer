@@ -11,8 +11,9 @@
 		"format": "prettier --write .",
 		"test": "node --test test/**/*.test.js",
 		"test:watch": "node --watch --test test/**/*.test.js",
+		"login": "node login.js",
 		"deploy": "dotenv -- npm run deploy:component",
-		"deploy:component": "harper deploy_component . restart=rolling replicated=true"
+		"deploy:component": "harper deploy_component . project=akamai-siem-analyzer restart=rolling replicated=true"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

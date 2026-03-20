@@ -88,12 +88,34 @@ flowchart TD
 npm install
 ```
 
-### 2. Configure environment
+### 2. Configure Fabric credentials
 
-Copy `.env.example` to `.env` and fill in your credentials:
+Run the interactive login helper to securely create your `.env` file with your Harper Fabric cluster credentials:
 
 ```sh
-cp .env.example .env
+npm run login
+```
+
+This will prompt for your Cluster URL, Username, and Password and write them to `.env` — no credentials in your shell history.
+
+### 3. Add remaining environment variables
+
+Open `.env` and add the remaining configuration values:
+
+```sh
+# Akamai EdgeGrid
+AKAMAI_HOST=your-host.luna.akamaiapis.net
+AKAMAI_CLIENT_TOKEN=your-client-token
+AKAMAI_CLIENT_SECRET=your-client-secret
+AKAMAI_ACCESS_TOKEN=your-access-token
+AKAMAI_CONFIG_ID=your-config-id
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Google OAuth
+OAUTH_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+OAUTH_GOOGLE_CLIENT_SECRET=your-client-secret
 ```
 
 | Variable | Description |
@@ -107,7 +129,7 @@ cp .env.example .env
 | `OAUTH_GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID |
 | `OAUTH_GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret |
 
-### 3. Start development server
+### 4. Start development server
 
 ```sh
 npm run dev
@@ -115,7 +137,7 @@ npm run dev
 
 Open [http://localhost:9926](http://localhost:9926) to access the dashboard.
 
-### 4. Configure analysis (optional)
+### 5. Configure analysis (optional)
 
 Runtime defaults are in `config/default.json`. Key tunables:
 
