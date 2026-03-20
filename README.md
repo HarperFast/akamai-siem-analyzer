@@ -63,11 +63,11 @@ flowchart TD
 | **Component Architecture** | Runs as a Harper component (Node.js runtime on HarperDB) |
 | **GraphQL Schema** | Declarative table definitions with `@table`, `@indexed`, `@primaryKey`, `@export` |
 | **Record Expiration/Eviction** | `@table(expiration: N)` for automatic TTL-based cleanup — 7d events, 90d batch analysis, 180d strategic, 24h exports |
-| **Native Date Type** | `Date` with `@createdTime` / `@updatedTime` auto-population |
-| **Blob Storage** | Profile pictures and export files stored directly in tables via `createBlob` |
+| **Native Date Type** | `Date` with `@createdTime` auto-population |
+| **Blob Storage** | Profile pictures (via `createBlob`) and export files stored directly in tables |
 | **Audit Logging** | `@table(audit: true)` on the runtime configuration table |
 | **Relationships** | `@relationship(from:)` for cross-table User lookups |
-| **Resource Classes** | Custom REST endpoints with `allow*` access control methods |
+| **Resource Classes** | Custom REST endpoints (`Api`, `Analysis`, `Events`, etc.) and table resources with `allowRead` access control |
 | **OAuth Plugin** | `@harperfast/oauth` with Google OIDC for session-based authentication |
 | **Cluster-Safe Polling** | Lease-based leader election via `siem_offsets` table |
 
@@ -78,7 +78,7 @@ flowchart TD
 - **Akamai SIEM API access** — Account Protector license with SIEM Integration enabled
 - **Akamai EdgeGrid credentials** — client token, client secret, access token, and host
 - **Anthropic API key** — with access to Claude Haiku, Sonnet, and Opus models
-- **Google Cloud OAuth 2.0 credentials** — client ID and secret with authorized redirect URI (`http://localhost:9926/oauth/google/callback` for local dev)
+- **Google Cloud OAuth 2.0 credentials** — client ID and secret with authorized redirect URIs (`http://localhost:9926/oauth/google/callback` for local dev, `https://<project>.<org>.harperfabric.com/oauth/google/callback` for Fabric — no port number)
 
 ## Setup
 
@@ -116,6 +116,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 # Google OAuth
 OAUTH_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 OAUTH_GOOGLE_CLIENT_SECRET=your-client-secret
+OAUTH_REDIRECT_URI=http://localhost:9926/oauth/google/callback
 ```
 
 | Variable | Description |
@@ -128,6 +129,7 @@ OAUTH_GOOGLE_CLIENT_SECRET=your-client-secret
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OAUTH_GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID |
 | `OAUTH_GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret |
+| `OAUTH_REDIRECT_URI` | OAuth callback URL (no port for Fabric HTTPS) |
 
 ### 4. Start development server
 
@@ -153,20 +155,26 @@ Runtime defaults are in `config/default.json`. Key tunables:
 
 ## API Reference
 
+Resource URLs are **case-sensitive** and match the exported class name.
+
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/analysis/stream` | GET | analyst+ | Recent analyses (polling endpoint) |
-| `/api/analysis/on-demand` | POST | admin | Trigger strategic analysis |
-| `/api/analysis/{id}` | GET | analyst+ | Analysis detail |
-| `/api/events/{id}` | GET | analyst+ | Event detail |
-| `/api/events/batch/{batchId}` | GET | analyst+ | Events by batch |
-| `/api/events/query` | POST | analyst+ | Query events by IP, path, country, action |
-| `/api/events/export` | POST | analyst+ | Export events (NDJSON or CSV) |
-| `/api/events/export/{id}` | GET | analyst+ | Export status |
-| `/api/health` | GET | analyst+ | System health and poller status |
-| `/api/cost` | GET | admin | Daily cost breakdown |
-| `/api/config/{key}` | PUT | admin | Update runtime configuration |
-| `/api/me` | GET | analyst+ | Current user profile |
+| `/Api/me` | GET | public | Current user profile (returns `authenticated: false` if not logged in) |
+| `/Api/health` | GET | analyst+ | System health, poller status, and cost summary |
+| `/Api/cost` | GET | admin | Daily cost breakdown |
+| `/Api/logout` | POST | analyst+ | Destroy session |
+| `/Analysis/stream` | GET | analyst+ | Recent analyses (polling endpoint) |
+| `/Analysis/{id}` | GET | analyst+ | Analysis detail |
+| `/Analysis/` | POST | admin | Trigger on-demand strategic analysis |
+| `/Events/{id}` | GET | analyst+ | Event detail |
+| `/Events/query` | POST | analyst+ | Query events by IP, path, country, action |
+| `/Events/export` | POST | analyst+ | Export events (NDJSON or CSV) |
+| `/EventBatch/{batchId}` | GET | analyst+ | Events by batch |
+| `/ExportStatus/{id}` | GET | analyst+ | Export status |
+| `/Config/{key}` | GET/PUT | admin | Read/update runtime configuration |
+| `/UserPicture/{userId}` | GET | analyst+ | User avatar blob |
+| `/oauth/google/login` | GET | public | Initiate Google OAuth login |
+| `/oauth/google/callback` | GET | public | OAuth callback (handled by plugin) |
 
 ## Cost Management
 
@@ -191,12 +199,16 @@ Tests cover:
 ## Deployment
 
 1. Create a cluster at [https://fabric.harper.fast/](https://fabric.harper.fast/)
-2. Configure `.env` with cluster credentials (`CLI_TARGET`, `CLI_TARGET_USERNAME`, `CLI_TARGET_PASSWORD`)
-3. Deploy:
+2. Run `npm run login` to configure `.env` with cluster credentials
+3. Set `OAUTH_REDIRECT_URI` in `.env` to `https://<project>.<org>.harperfabric.com/oauth/google/callback` (no port number for Fabric HTTPS)
+4. Add the Fabric redirect URI to your Google Cloud OAuth consent screen
+5. Deploy:
 
 ```sh
 npm run deploy
 ```
+
+The deploy script uses `dotenv` to load `.env` and runs `harper deploy_component` with rolling restart and replication enabled.
 
 ## License
 

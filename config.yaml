@@ -26,6 +26,7 @@ static:
 # OAuth plugin for Google OIDC authentication
 '@harperfast/oauth':
   package: '@harperfast/oauth'
+  redirectUri: ${OAUTH_REDIRECT_URI}
   providers:
     google:
       clientId: ${OAUTH_GOOGLE_CLIENT_ID}

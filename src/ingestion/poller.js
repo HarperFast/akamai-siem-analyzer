@@ -1,6 +1,5 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
-import { tables } from 'harperdb';
 import { createClient } from './akamai-client.js';
 import { normalizeEvent } from './normalizer.js';
 import defaultConfig from '../../config/default.json' with { type: 'json' };

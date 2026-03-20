@@ -1,4 +1,3 @@
-import { tables } from 'harperdb';
 import defaultConfig from '../../config/default.json' with { type: 'json' };
 
 const COST_CONFIG = defaultConfig.cost;

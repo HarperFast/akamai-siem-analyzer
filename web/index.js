@@ -3,7 +3,13 @@ import { openLightbox, closeLightbox } from './lightbox.js';
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
-	await loadCurrentUser();
+	const authenticated = await checkAuth();
+	if (!authenticated) return; // Stay on login view
+
+	// Show dashboard, hide login
+	document.getElementById('login-view').style.display = 'none';
+	document.getElementById('dashboard-view').style.display = 'flex';
+
 	await loadHealth();
 	initStream();
 
@@ -17,6 +23,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 	// Trigger analysis button
 	document.getElementById('trigger-analysis').addEventListener('click', triggerAnalysis);
+
+	// Logout button
+	document.getElementById('logout-btn').addEventListener('click', async () => {
+		await fetch('/Api/logout', { method: 'POST' });
+		window.location.reload();
+	});
 
 	// Close lightbox on overlay click
 	document.getElementById('lightbox').addEventListener('click', (e) => {
@@ -40,37 +52,42 @@ document.addEventListener('DOMContentLoaded', async () => {
 	});
 });
 
-async function loadCurrentUser() {
+async function checkAuth() {
 	try {
-		const res = await fetch('/api/me');
-		if (!res.ok) {
-			if (res.status === 401 || res.status === 403) {
-				window.location.href = '/oauth/google/login';
-				return;
-			}
-			return;
-		}
+		const res = await fetch('/Api/me');
+		if (!res.ok) return false;
 		const user = await res.json();
+		if (!user.authenticated) return false;
+
 		const avatar = document.getElementById('user-avatar');
+		const initial = (user.name || user.email || '?')[0].toUpperCase();
+		avatar.title = user.name || user.email;
 
 		if (user.hasPicture) {
-			avatar.style.backgroundImage = `url('/api/user/${user.id}/picture')`;
-			avatar.style.backgroundSize = 'cover';
-			avatar.textContent = '';
+			const img = new Image();
+			img.onload = () => {
+				avatar.style.backgroundImage = `url('${img.src}')`;
+				avatar.style.backgroundSize = 'cover';
+				avatar.textContent = '';
+			};
+			img.onerror = () => {
+				avatar.textContent = initial;
+				avatar.classList.add('avatar-placeholder');
+			};
+			img.src = `/UserPicture/${user.id}`;
 		} else {
-			const initial = (user.name || user.email || '?')[0].toUpperCase();
 			avatar.textContent = initial;
 			avatar.classList.add('avatar-placeholder');
 		}
-		avatar.title = user.name || user.email;
+		return true;
 	} catch (e) {
-		// User may not be logged in
+		return false;
 	}
 }
 
 async function loadHealth() {
 	try {
-		const res = await fetch('/api/health');
+		const res = await fetch('/Api/health');
 		if (!res.ok) return;
 		const health = await res.json();
 
@@ -95,7 +112,7 @@ async function triggerAnalysis() {
 	btn.textContent = 'Running...';
 
 	try {
-		const res = await fetch('/api/analysis/on-demand', {
+		const res = await fetch('/Analysis/', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -123,7 +140,7 @@ async function triggerAnalysis() {
 
 async function openIPDrilldown(ip) {
 	try {
-		const res = await fetch('/api/events/query', {
+		const res = await fetch('/Events/query', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ clientIP: ip, limit: 50 }),
@@ -138,7 +155,7 @@ async function openIPDrilldown(ip) {
 
 async function openEventDetail(eventId) {
 	try {
-		const res = await fetch(`/api/events/${eventId}`);
+		const res = await fetch(`/Events/${eventId}`);
 		if (!res.ok) return;
 		const event = await res.json();
 		openLightbox('event-detail', event);

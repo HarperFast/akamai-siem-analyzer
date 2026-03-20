@@ -27,8 +27,8 @@ export function refreshStream(severityFilter) {
 async function loadAnalyses() {
 	try {
 		const url = currentFilter
-			? `/api/analysis/stream?severity=${currentFilter}`
-			: '/api/analysis/stream';
+			? `/Analysis/stream?severity=${currentFilter}`
+			: '/Analysis/stream';
 
 		const res = await fetch(url);
 		if (!res.ok) return;
@@ -113,7 +113,7 @@ function escapeHtml(str) {
 // Make selectAnalysis available globally
 window.selectAnalysis = async function (id) {
 	try {
-		const res = await fetch(`/api/analysis/${id}`);
+		const res = await fetch(`/Analysis/${id}`);
 		if (!res.ok) return;
 		const analysis = await res.json();
 		renderDetail(analysis);

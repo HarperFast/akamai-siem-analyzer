@@ -1,4 +1,3 @@
-import { tables } from 'harperdb';
 
 // Helper to check if request has an authenticated OAuth session
 function isAuthenticated(context) {

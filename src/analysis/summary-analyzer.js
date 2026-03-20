@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { tables } from 'harperdb';
 import { randomUUID } from 'node:crypto';
 import { getSummaryModel } from './model-router.js';
 import { buildSummaryPrompt } from './prompts/summary.js';

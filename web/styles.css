@@ -42,6 +42,50 @@ body {
 	overflow: hidden;
 }
 
+/* === Login View === */
+.login-view {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100vh;
+}
+
+.login-card {
+	text-align: center;
+	padding: 48px;
+	background: var(--bg-secondary);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+}
+
+.login-title {
+	font-size: 24px;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.login-subtitle {
+	color: var(--text-secondary);
+	font-size: 14px;
+	margin-bottom: 32px;
+}
+
+.btn-google {
+	display: inline-block;
+	padding: 10px 24px;
+	background: white;
+	color: #333;
+	border-radius: 6px;
+	font-size: 14px;
+	font-weight: 500;
+	text-decoration: none;
+	transition: background 0.15s;
+}
+
+.btn-google:hover {
+	background: #f0f0f0;
+}
+
 /* === Header === */
 .header {
 	display: flex;
@@ -434,6 +478,18 @@ body {
 
 .btn-primary:hover {
 	background: rgba(88, 166, 255, 0.25);
+}
+
+.btn-logout {
+	background: transparent;
+	border-color: var(--border);
+	color: var(--text-secondary);
+	padding: 4px 12px;
+	font-size: 0.8rem;
+}
+.btn-logout:hover {
+	border-color: var(--danger);
+	color: var(--danger);
 }
 
 .btn:disabled {

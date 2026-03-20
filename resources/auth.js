@@ -1,51 +1,64 @@
 import { registerHooks } from '@harperfast/oauth';
-import { tables, createBlob } from 'harperdb';
+
+async function fetchAvatarBlob(url) {
+	try {
+		const response = await fetch(url);
+		if (!response.ok) return null;
+		const buffer = Buffer.from(await response.arrayBuffer());
+		return createBlob(buffer);
+	} catch {
+		return null;
+	}
+}
 
 registerHooks({
 	onLogin: async (oauthUser, tokenResponse, session, request, provider) => {
 		const { User } = tables;
 
+		if (!oauthUser?.email) {
+			throw new Error('OAuth provider did not provide email');
+		}
+
 		// Find existing user by email
 		let user;
-		for await (const existing of User.search({ email: oauthUser.email })) {
-			user = existing;
+		for await (const record of User.search([{ attribute: 'email', value: oauthUser.email }])) {
+			user = record;
 			break;
 		}
 
-		// Fetch profile picture as Blob if URL provided
-		let pictureBlob = null;
-		if (oauthUser.picture) {
-			try {
-				const res = await fetch(oauthUser.picture);
-				if (res.ok) {
-					const buffer = Buffer.from(await res.arrayBuffer());
-					const contentType = res.headers.get('content-type') || 'image/jpeg';
-					pictureBlob = createBlob(buffer, { type: contentType });
-				}
-			} catch (e) {
-				// Picture fetch failed — UI will show first-initial placeholder
-			}
+		const picture = oauthUser.metadata?.oauthClaims?.picture || '';
+
+		// Fetch Google avatar as blob
+		let avatarBlob = null;
+		if (picture) {
+			avatarBlob = await fetchAvatarBlob(picture);
 		}
 
 		if (!user) {
-			// Create new user with default 'analyst' role
-			user = await User.create({
+			const createData = {
 				email: oauthUser.email,
 				name: oauthUser.name,
-				picture: pictureBlob,
 				provider,
 				role: 'analyst',
-			});
+			};
+			if (avatarBlob) {
+				createData.picture = avatarBlob;
+			}
+			user = await User.create(createData);
 		} else {
-			// Update last login, name, and picture on every login
-			await User.update(user.id, {
-				lastLoginAt: new Date(),
-				name: oauthUser.name,
-				picture: pictureBlob,
-			});
+			const updateData = {
+				email: user.email,
+				name: oauthUser.name || user.name,
+				provider: user.provider,
+				role: user.role,
+				lastLoginAt: new Date().toISOString(),
+			};
+			if (avatarBlob) {
+				updateData.picture = avatarBlob;
+			}
+			await User.put(user.id, updateData);
 		}
 
-		// Return data stored in session
-		return { user: String(user.id), role: user.role };
+		return { user: String(user.id) };
 	},
 });

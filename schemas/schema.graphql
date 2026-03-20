@@ -9,7 +9,6 @@ type User @table @export {
   role: String
   lastLoginAt: Date
   createdAt: Date @createdTime
-  updatedAt: Date @updatedTime
 }
 
 # === SIEM Events (raw logs, 7-day expiration/eviction) ===
@@ -73,7 +72,7 @@ type siem_analysis_batch @table(expiration: 7776000) @export {
   source: String
   configId: String @indexed
   batchId: String
-  createdAt: Date @createdTime
+  createdAt: Date @createdTime @indexed
   # Time window
   windowStart: Date
   windowEnd: Date
@@ -116,7 +115,7 @@ type siem_analysis_batch @table(expiration: 7776000) @export {
 type siem_analysis_strategic @table(expiration: 15552000) @export {
   id: ID @primaryKey
   source: String
-  createdAt: Date @createdTime
+  createdAt: Date @createdTime @indexed
   windowStart: Date
   windowEnd: Date
   batchSummaryIds: [String]
