@@ -1,0 +1,208 @@
+# === Users (OAuth-provisioned, no HarperDB users needed) ===
+
+type User @table @export {
+  id: ID @primaryKey
+  email: String @indexed
+  name: String
+  picture: Blob
+  provider: String
+  role: String
+  lastLoginAt: Date
+  createdAt: Date @createdTime
+  updatedAt: Date @updatedTime
+}
+
+# === SIEM Events (raw logs, 7-day expiration/eviction) ===
+
+type siem_events @table(expiration: 604800) @export {
+  id: ID @primaryKey
+  # Ingestion metadata
+  source: String
+  configId: String @indexed
+  policyId: String
+  ingestedAt: Date @createdTime
+  batchId: String @indexed
+  # Attack data (decoded)
+  clientIP: String @indexed
+  decodedRules: [DecodedRule]
+  ruleActionSummary: String @indexed
+  # HTTP message
+  requestId: String
+  eventTime: Date
+  eventTimeEpoch: Float @indexed
+  protocol: String
+  method: String
+  host: String
+  port: String
+  path: String @indexed
+  query: String
+  requestHeaders: JSON
+  responseStatus: String
+  responseBytes: String
+  responseHeaders: JSON
+  # Geo
+  geoContinent: String
+  geoCountry: String @indexed
+  geoCity: String
+  geoRegion: String
+  geoASN: String
+  # Bot data
+  botScore: Int @indexed
+  botResponseSegment: Int
+  botClientData: JSON
+  # User risk data
+  userRiskScore: Int @indexed
+  userRiskReasons: [String]
+  userRiskUUID: String @indexed
+}
+
+type DecodedRule {
+  rule: String
+  ruleVersion: String
+  ruleMessage: String
+  ruleTag: String
+  ruleData: String
+  ruleSelector: String
+  ruleAction: String
+}
+
+# === Batch Analysis (90-day expiration/eviction) ===
+
+type siem_analysis_batch @table(expiration: 7776000) @export {
+  id: ID @primaryKey
+  source: String
+  configId: String @indexed
+  batchId: String
+  createdAt: Date @createdTime
+  # Time window
+  windowStart: Date
+  windowEnd: Date
+  windowDurationSeconds: Int
+  # Trigger metadata
+  triggerReason: String
+  modelUsed: String
+  wasEscalated: Boolean
+  # Structured metadata
+  eventCount: Int
+  denyCount: Int
+  alertCount: Int
+  monitorCount: Int
+  uniqueIPs: Int
+  topIPs: JSON
+  topPaths: JSON
+  topCountries: JSON
+  topRuleTags: JSON
+  botScoreDistribution: JSON
+  userRiskScoreDistribution: JSON
+  avgBotScore: Float
+  avgUserRiskScore: Float
+  denyRatio: Float
+  # AI analysis
+  analysis: String
+  severity: String @indexed
+  flags: [String]
+  notableIPs: [String]
+  notablePatterns: [String]
+  # Cost tracking
+  inputTokens: Int
+  outputTokens: Int
+  estimatedCostUSD: Float
+  # Poll-cycle batch IDs covered by this analysis
+  pollBatchIds: [String]
+}
+
+# === Strategic Analysis (180-day expiration/eviction) ===
+
+type siem_analysis_strategic @table(expiration: 15552000) @export {
+  id: ID @primaryKey
+  source: String
+  createdAt: Date @createdTime
+  windowStart: Date
+  windowEnd: Date
+  batchSummaryIds: [String]
+  batchSummaryCount: Int
+  triggerType: String
+  requestedBy: String
+  requestedByUserId: ID
+  requestedByUser: User @relationship(from: "requestedByUserId")
+  timeRangeRequested: JSON
+  # AI analysis
+  model: String
+  analysis: String
+  severity: String @indexed
+  flags: [String]
+  recommendations: [String]
+  # Structured cross-batch stats
+  totalEvents: Int
+  totalDenies: Int
+  totalAlerts: Int
+  campaignsDetected: JSON
+  policyEffectivenessNotes: String
+  # Cost tracking
+  inputTokens: Int
+  outputTokens: Int
+  estimatedCostUSD: Float
+}
+
+# === Polling State (no expiration) ===
+
+type siem_offsets @table @export {
+  configId: ID @primaryKey
+  lastOffset: String
+  lastPollTime: Date
+  lastEventTime: Date
+  lastBatchId: String
+  eventsInLastBatch: Int
+  totalEventsToday: Int
+  todayDate: String
+  updatedAt: Date @updatedTime
+  # Lease-based leader election for cluster-safe polling
+  leaseHolder: String
+  leaseExpiresAt: Date
+}
+
+# === Runtime Configuration (audited) ===
+
+type siem_config @table(audit: true) @export {
+  key: ID @primaryKey
+  value: JSON
+  updatedAt: Date @updatedTime
+  updatedBy: String
+  updatedByUserId: ID
+  updatedByUser: User @relationship(from: "updatedByUserId")
+}
+
+# === Cost Tracking ===
+
+type siem_cost_tracking @table @export {
+  date: ID @primaryKey
+  haikuInputTokens: Int
+  haikuOutputTokens: Int
+  sonnetInputTokens: Int
+  sonnetOutputTokens: Int
+  opusInputTokens: Int
+  opusOutputTokens: Int
+  estimatedTotalUSD: Float
+  analysisCallCount: Int
+  escalationCount: Int
+  budgetWarningFired: Boolean
+  budgetCapReached: Boolean
+  updatedAt: Date @updatedTime
+}
+
+# === Event Exports (24-hour expiration) ===
+
+type siem_exports @table(expiration: 86400) @export {
+  id: ID @primaryKey
+  status: String @indexed
+  format: String
+  query: JSON
+  estimatedRows: Int
+  actualRows: Int
+  data: Blob
+  requestedByUserId: ID
+  requestedByUser: User @relationship(from: "requestedByUserId")
+  createdAt: Date @createdTime
+  completedAt: Date
+  error: String
+}

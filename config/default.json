@@ -1,0 +1,62 @@
+{
+  "ingestion": {
+    "pollIntervalSeconds": 30,
+    "batchLimit": 600000,
+    "insertBatchSize": 2000,
+    "maxRetries": 3,
+    "retryBaseDelayMs": 1000,
+    "connectionTimeoutMs": 120000,
+    "minPollSpacingMs": 1000,
+    "offsetStaleHours": 12,
+    "leaseIntervalSeconds": 60
+  },
+  "analysis": {
+    "batch": {
+      "eventCountThreshold": 500,
+      "timeCeilingSeconds": 300,
+      "maxEventsInPrompt": 50,
+      "denyEventSampleRatio": 0.4,
+      "highRiskSampleRatio": 0.3,
+      "highBotScoreSampleRatio": 0.2,
+      "randomFillRatio": 0.1
+    },
+    "summary": {
+      "intervalMinutes": 60,
+      "maxBatchSummaries": 20
+    },
+    "strategic": {
+      "intervalHours": 24,
+      "lookbackHours": 168,
+      "maxSummariesInPrompt": 50
+    },
+    "escalation": {
+      "denyRatioThreshold": 0.3,
+      "highSeverityCountThreshold": 5,
+      "uniqueIPSpikeMultiplier": 3.0,
+      "botScoreThreshold": 70,
+      "userRiskScoreThreshold": 70
+    }
+  },
+  "cost": {
+    "dailyBudgetWarningUSD": 5.0,
+    "dailyBudgetHardCapUSD": 10.0,
+    "models": {
+      "haiku": {
+        "inputPer1M": 0.25,
+        "outputPer1M": 1.25
+      },
+      "sonnet": {
+        "inputPer1M": 3.0,
+        "outputPer1M": 15.0
+      },
+      "opus": {
+        "inputPer1M": 15.0,
+        "outputPer1M": 75.0
+      }
+    }
+  },
+  "ui": {
+    "maxStreamItems": 100,
+    "sseReconnectIntervalMs": 5000
+  }
+}

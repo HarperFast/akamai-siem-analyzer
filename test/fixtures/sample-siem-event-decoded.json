@@ -1,0 +1,32 @@
+{
+  "decodedRules": [
+    {
+      "rule": "950002",
+      "ruleVersion": "4",
+      "ruleMessage": "SQL Injection Attack",
+      "ruleTag": "OWASP/SQLi",
+      "ruleData": "select",
+      "ruleSelector": "ARGS_GET:q",
+      "ruleAction": "deny"
+    },
+    {
+      "rule": "959073",
+      "ruleVersion": "4",
+      "ruleMessage": "Cross-Site Scripting",
+      "ruleTag": "OWASP/XSS",
+      "ruleData": "<script>",
+      "ruleSelector": "ARGS_GET:q",
+      "ruleAction": "alert"
+    },
+    {
+      "rule": "981243",
+      "ruleVersion": "4",
+      "ruleMessage": "SQL Injection Attack - Common DB Names",
+      "ruleTag": "OWASP/SQLi",
+      "ruleData": "information_schema",
+      "ruleSelector": "ARGS_GET:q",
+      "ruleAction": "deny"
+    }
+  ],
+  "ruleActionSummary": "deny"
+}

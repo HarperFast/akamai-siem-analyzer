@@ -1,0 +1,43 @@
+{
+  "attackData": {
+    "clientIP": "203.0.113.42",
+    "rules": ["950002", "959073", "981243"],
+    "ruleMessages": "U1FMIEluamVjdGlvbiBBdHRhY2s=;Q3Jvc3MtU2l0ZSBTY3JpcHRpbmc=;U1FMIEluamVjdGlvbiBBdHRhY2sgLSBDb21tb24gREIgTmFtZXM=",
+    "ruleTags": "T1dBU1AvU1FMaQ==;T1dBU1AvWFNT;T1dBU1AvU1FMaQ==",
+    "ruleData": "c2VsZWN0;PHNjcmlwdD4=;aW5mb3JtYXRpb25fc2NoZW1h",
+    "ruleSelectors": "QVJHU19HRVQ6cQ==;QVJHU19HRVQ6cQ==;QVJHU19HRVQ6cQ==",
+    "ruleActions": "ZGVueQ==;YWxlcnQ=;ZGVueQ==",
+    "ruleVersions": "NA==;NA==;NA==",
+    "policyId": "qik1_26545"
+  },
+  "httpMessage": {
+    "requestId": "1a2b3c4d",
+    "start": "1710950400",
+    "protocol": "HTTP/1.1",
+    "method": "GET",
+    "host": "www.example.com",
+    "port": "80",
+    "path": "/api/users",
+    "query": "id=1%20OR%201=1",
+    "requestHeaders": {"User-Agent": "Mozilla/5.0", "Accept": "*/*"},
+    "status": "403",
+    "bytes": "1234",
+    "responseHeaders": {"Content-Type": "text/html"},
+    "clientIP": "203.0.113.42"
+  },
+  "geo": {
+    "continent": "NA",
+    "country": "US",
+    "city": "ASHBURN",
+    "regionCode": "VA",
+    "asn": "14618"
+  },
+  "botScore": "82",
+  "botResponseSegment": "3",
+  "botData": {"anomalies": ["browser_fingerprint"]},
+  "userRiskData": {
+    "score": "75",
+    "reasons": ["suspicious_ip", "credential_abuse"],
+    "uuid": "risk-uuid-123"
+  }
+}
