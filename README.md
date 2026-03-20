@@ -1,6 +1,6 @@
 # Akamai SIEM Analyzer
 
-Real-time Akamai security event ingestion and AI-powered threat analysis, built as a [Harper](https://harperdb.io) component.
+Real-time Akamai security event ingestion and AI-powered threat analysis, built as a [Harper](https://harper.fast) component.
 
 ## Overview
 
