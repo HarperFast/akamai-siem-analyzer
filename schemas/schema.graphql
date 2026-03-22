@@ -126,6 +126,7 @@ type siem_analysis_strategic @table(expiration: 15552000) @export {
   requestedByUser: User @relationship(from: "requestedByUserId")
   timeRangeRequested: JSON
   # AI analysis
+  status: String @indexed
   model: String
   analysis: String
   severity: String @indexed

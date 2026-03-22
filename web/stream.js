@@ -44,6 +44,11 @@ async function loadAnalyses() {
 function renderAnalyses(analyses) {
 	const container = document.getElementById('analysis-stream');
 
+	if (!analyses || analyses.length === 0) {
+		container.innerHTML = '<div class="detail-placeholder"><p>No analyses available yet. Waiting for events...</p></div>';
+		return;
+	}
+
 	// Sort by creation time, newest first
 	analyses.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -60,7 +65,7 @@ function renderAnalyses(analyses) {
 			.map((f) => `<span class="badge badge-flag">${escapeHtml(f)}</span>`)
 			.join('');
 
-		const analysisPreview = truncateAnalysis(analysis.analysis || '', 200);
+		const analysisPreview = truncateAnalysis(analysis.analysis || '', 500);
 
 		return `
 			<div class="analysis-card ${severityClass}" data-analysis-id="${analysis.id}" onclick="selectAnalysis('${analysis.id}')">
@@ -74,7 +79,7 @@ function renderAnalyses(analyses) {
 					<p class="card-analysis">${linkifyAnalysis(analysisPreview)}</p>
 					<div class="card-meta">
 						<span>Events: ${analysis.eventCount || analysis.totalEvents || 0}</span>
-						${analysis.denyCount ? `<span>Denies: ${analysis.denyCount}</span>` : ''}
+						${analysis.denyCount ? `<span>Denies: ${analysis.denyCount}${analysis.denyRatio != null ? ` (${(analysis.denyRatio * 100).toFixed(1)}%)` : ''}</span>` : ''}
 						${analysis.uniqueIPs ? `<span>IPs: ${analysis.uniqueIPs}</span>` : ''}
 						${analysis.modelUsed || analysis.model ? `<span>Model: ${analysis.modelUsed || analysis.model}</span>` : ''}
 					</div>

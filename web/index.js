@@ -96,8 +96,9 @@ async function loadHealth() {
 		badge.className = `health-badge ${health.poller?.status === 'active' ? 'health-ok' : 'health-warn'}`;
 
 		const cost = document.getElementById('cost-indicator');
-		const todayUSD = health.cost?.todayUSD?.toFixed(2) || '0.00';
-		cost.textContent = `$${todayUSD}`;
+		const todayUSD = health.cost?.todayUSD || 0;
+		cost.textContent = todayUSD >= 0.01 ? `$${todayUSD.toFixed(2)}` : `$${todayUSD.toFixed(4)}`;
+		cost.title = `Today's AI cost: $${todayUSD.toFixed(4)} | Analyses: ${health.cost?.analysisCount || 0}`;
 		if (health.cost?.budgetCapReached) {
 			cost.classList.add('cost-capped');
 		}
@@ -120,22 +121,55 @@ async function triggerAnalysis() {
 			}),
 		});
 
-		if (res.ok) {
-			const result = await res.json();
-			if (result.error) {
-				alert(result.error);
-			} else {
-				refreshStream();
-			}
-		} else if (res.status === 403) {
-			alert('Admin access required to trigger analysis');
+		if (!res.ok) {
+			if (res.status === 403) alert('Admin access required to trigger analysis');
+			else alert('Failed to trigger analysis');
+			btn.disabled = false;
+			btn.textContent = 'Trigger Analysis';
+			return;
 		}
+
+		const result = await res.json();
+		if (result.error) {
+			alert(result.error);
+			btn.disabled = false;
+			btn.textContent = 'Trigger Analysis';
+			return;
+		}
+
+		// Poll for the record to appear
+		pollForStrategicResult(btn, result.id);
 	} catch (e) {
 		alert('Failed to trigger analysis');
-	} finally {
 		btn.disabled = false;
 		btn.textContent = 'Trigger Analysis';
 	}
+}
+
+function pollForStrategicResult(btn, jobId) {
+	const startedAt = Date.now();
+	const timer = setInterval(async () => {
+		if (Date.now() - startedAt > 5 * 60 * 1000) {
+			clearInterval(timer);
+			btn.disabled = false;
+			btn.textContent = 'Trigger Analysis';
+			return;
+		}
+		try {
+			const res = await fetch(`/Analysis/${jobId}`);
+			if (!res.ok) return;
+			const record = await res.json();
+			if (record.error) return; // Not found yet
+			if (record.analysis) {
+				// Record exists with analysis — it's done
+				clearInterval(timer);
+				btn.disabled = false;
+				btn.textContent = 'Trigger Analysis';
+				refreshStream();
+				window.selectAnalysis(jobId);
+			}
+		} catch {}
+	}, 5000);
 }
 
 async function openIPDrilldown(ip) {

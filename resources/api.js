@@ -1,5 +1,5 @@
 import { runStrategicAnalysis } from '../src/analysis/strategic-analyzer.js';
-import { getCostSummary } from '../src/utils/cost-tracker.js';
+import { getCostSummary, checkBudget } from '../src/utils/cost-tracker.js';
 
 function isAuthenticated(context) {
 	return !!context.session?.oauth;
@@ -58,7 +58,8 @@ export class Api extends Resource {
 
 		if (path === 'health') {
 			requireAuth(context);
-			const configId = process.env.AKAMAI_CONFIG_ID;
+			const isSimMode = process.env.SIMULATION_MODE === 'true';
+			const configId = isSimMode ? 'simulation' : process.env.AKAMAI_CONFIG_ID;
 			let pollerStatus = { status: 'unconfigured' };
 			if (configId) {
 				const offset = await tables.siem_offsets.get(configId);
@@ -68,6 +69,7 @@ export class Api extends Resource {
 					eventsInLastBatch: offset?.eventsInLastBatch,
 					totalEventsToday: offset?.totalEventsToday,
 					leaseHolder: offset?.leaseHolder,
+					simulationMode: isSimMode,
 				};
 			}
 			const costSummary = await getCostSummary();
@@ -78,6 +80,7 @@ export class Api extends Resource {
 					todayUSD: costSummary.estimatedTotalUSD,
 					budgetRemainingUSD: costSummary.budgetRemainingUSD,
 					budgetCapReached: costSummary.budgetCapReached,
+					analysisCount: costSummary.analysisCallCount || 0,
 				},
 			};
 		}
@@ -85,6 +88,55 @@ export class Api extends Resource {
 		if (path === 'cost') {
 			requireAdmin(context);
 			return getCostSummary();
+		}
+
+		if (path === 'debug-batches') {
+			requireAuth(context);
+			try {
+				const cutoff = new Date(Date.now() - 168 * 60 * 60 * 1000);
+
+				// Test 1: get all
+				let allBatches;
+				try {
+					const r = await tables.siem_analysis_batch.get({});
+					allBatches = Array.isArray(r) ? r : Array.from(r);
+				} catch (err) {
+					allBatches = [];
+				}
+				const countAll = allBatches.length;
+
+				// Test 2: with conditions
+				let filteredBatches;
+				let filterError = null;
+				try {
+					const r = await tables.siem_analysis_batch.get({
+						conditions: [
+							{ attribute: 'createdAt', comparator: 'greater_than', value: cutoff },
+						],
+					});
+					filteredBatches = Array.isArray(r) ? r : Array.from(r);
+				} catch (err) {
+					filterError = err.message;
+					filteredBatches = [];
+				}
+				const countFiltered = filteredBatches.length;
+
+				// Test 3: run the actual strategic analysis synchronously and return result
+				let strategicResult = null;
+				let strategicError = null;
+				try {
+					strategicResult = await runStrategicAnalysis({
+						requestedBy: 'debug',
+						skipBudgetCheck: true,
+					});
+				} catch (err) {
+					strategicError = err.message + '\n' + err.stack;
+				}
+
+				return { countAll, countFiltered, filterError, cutoff: cutoff.toISOString(), strategicResult, strategicError };
+			} catch (err) {
+				return { error: err.message };
+			}
 		}
 
 		return { error: 'Not found' };
@@ -130,31 +182,65 @@ export class Analysis extends Resource {
 				sort: { attribute: 'createdAt', descending: true },
 				limit: 10,
 			})) {
-				analyses.push({ ...record, type: 'strategic' });
+				if (record.status !== 'complete') continue;
+				record.type = 'strategic';
+				analyses.push(record);
 			}
 			return analyses;
 		}
 
 		// Detail by ID
 		let record = await tables.siem_analysis_batch.get(id);
-		if (record) return { ...record, type: 'batch' };
+		if (record) {
+			record.type = 'batch';
+			return record;
+		}
 		record = await tables.siem_analysis_strategic.get(id);
-		if (record) return { ...record, type: 'strategic' };
+		if (record) {
+			record.type = 'strategic';
+			return record;
+		}
 		return { error: 'Analysis not found' };
 	}
 
 	async post(target, data) {
 		const context = this.getContext();
-		requireAdmin(context);
-		const userId = getUserId(context);
-		const userRecord = userId ? await tables.User.get(userId) : null;
-		const result = await runStrategicAnalysis({
-			requestedBy: userRecord?.email || 'admin',
-			requestedByUserId: userId,
-			timeRange: data?.timeRange,
-		});
-		if (!result) return { error: 'Analysis failed or budget cap reached' };
-		return { id: result.id, severity: result.severity, status: 'complete' };
+		requireAuth(context);
+
+		try {
+			// Check budget before firing
+			const withinBudget = await checkBudget();
+			if (!withinBudget) return { error: 'Daily budget cap reached', status: 'error' };
+
+			const userId = getUserId(context);
+			const userRecord = userId ? await tables.User.get(userId) : null;
+
+			const resource = await tables.siem_analysis_strategic.create({
+				status: 'running',
+				triggerType: 'on_demand',
+				requestedBy: userRecord?.email || 'admin',
+				requestedByUserId: userId || null,
+				timeRangeRequested: data?.timeRange || null,
+				model: 'opus',
+			});
+			const jobId = resource.id;
+
+			// Fire async — analyzer updates this record when done
+			runStrategicAnalysis({
+				id: jobId,
+				requestedBy: userRecord?.email || 'admin',
+				requestedByUserId: userId,
+				timeRange: data?.timeRange,
+				skipBudgetCheck: true,
+			}).catch((err) => {
+				console.error(`[strategic-analysis] Failed: ${err.message}`);
+			});
+
+			return { id: jobId, status: 'started' };
+		} catch (err) {
+			console.error(`[strategic-analysis] POST handler error: ${err.message}\n${err.stack}`);
+			return { error: err.message, status: 'error' };
+		}
 	}
 }
 

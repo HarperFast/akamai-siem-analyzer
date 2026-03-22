@@ -35,10 +35,12 @@ export async function analyzeBatch(snapshot) {
 			.map((c) => c.text)
 			.join('\n');
 
-		// Parse structured response
+		// Parse structured response (extract JSON from markdown code fences if present)
 		let parsed;
 		try {
-			parsed = JSON.parse(analysisText);
+			const fenceMatch = analysisText.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+			const jsonText = fenceMatch ? fenceMatch[1].trim() : analysisText.trim();
+			parsed = JSON.parse(jsonText);
 		} catch {
 			parsed = {
 				analysis: analysisText,

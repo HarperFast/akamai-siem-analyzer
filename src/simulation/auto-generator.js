@@ -10,17 +10,17 @@ let startTime = null;
  */
 function getEscalationPhase(elapsedMinutes, baseEventsPerCycle) {
 	if (elapsedMinutes < 3) {
-		// Phase 1: Normal background traffic
+		// Phase 1: Normal background traffic — same volume, low deny ratio → Haiku
 		return {
 			scenario: 'light',
-			eventCount: Math.max(3, Math.round(baseEventsPerCycle * 0.3)),
+			eventCount: baseEventsPerCycle,
 		};
 	}
 	if (elapsedMinutes < 7) {
-		// Phase 2: First credential stuffing probes
+		// Phase 2: First credential stuffing probes — mixed, deny ratio climbs
 		return {
 			scenario: 'mixed',
-			eventCount: Math.round(baseEventsPerCycle * 0.7),
+			eventCount: baseEventsPerCycle,
 		};
 	}
 	if (elapsedMinutes < 15) {

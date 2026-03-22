@@ -251,10 +251,10 @@ const SCENARIO_WEIGHTS_DEFAULT = [
 
 const SCENARIO_WEIGHTS_LIGHT = [
 	{ scenario: 'credential_stuffing', weight: 5 },
-	{ scenario: 'sqli', weight: 10 },
+	{ scenario: 'sqli', weight: 5 },
 	{ scenario: 'xss', weight: 5 },
 	{ scenario: 'path_traversal', weight: 5 },
-	{ scenario: 'bot_scanner', weight: 30 },
+	{ scenario: 'bot_scanner', weight: 35 },
 	{ scenario: 'clean', weight: 45 },
 ];
 

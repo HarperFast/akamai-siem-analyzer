@@ -12,8 +12,11 @@ let pollTimer = null;
 let isPolling = false;
 
 export function startSimPoller() {
+	// Shorten the accumulator time ceiling for faster demo cadence
+	defaultConfig.analysis.batch.timeCeilingSeconds = 30;
+
 	const intervalMs = (defaultConfig.ingestion.pollIntervalSeconds || 30) * 1000;
-	console.log(`[sim-poller] Starting with node ID: ${NODE_ID}, interval: ${intervalMs}ms`);
+	console.log(`[sim-poller] Starting with node ID: ${NODE_ID}, interval: ${intervalMs}ms, timeCeiling: 30s`);
 
 	// Clear stale data from previous sessions
 	clearSimulatedEvents().then(() => {
