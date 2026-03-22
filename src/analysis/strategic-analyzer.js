@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { randomUUID } from 'node:crypto';
 import { getStrategicModel } from './model-router.js';
 import { buildStrategicPrompt } from './prompts/strategic.js';
 import { trackUsage, checkBudget } from '../utils/cost-tracker.js';
@@ -10,7 +9,7 @@ let strategicTimer = null;
 
 export function startStrategicScheduler() {
 	const intervalMs = (defaultConfig.analysis.strategic.intervalHours || 24) * 60 * 60 * 1000;
-	console.log(`[strategic-analyzer] Starting with interval: ${intervalMs / 3600000}h`);
+	console.error(`[strategic-analyzer] Starting with interval: ${intervalMs / 3600000}h`);
 	strategicTimer = setInterval(() => runStrategicAnalysis(), intervalMs);
 }
 
@@ -21,39 +20,70 @@ export function stopStrategicScheduler() {
 	}
 }
 
-export async function runStrategicAnalysis({ requestedBy, requestedByUserId, timeRange } = {}) {
-	const withinBudget = await checkBudget();
-	if (!withinBudget) {
-		console.warn('[strategic-analyzer] Budget cap reached, skipping');
-		return null;
-	}
+export async function runStrategicAnalysis({ id, requestedBy, requestedByUserId, timeRange, skipBudgetCheck } = {}) {
+	console.error(`[strategic-analyzer] === Starting job ${id || 'scheduled'} ===`);
+	console.error(`[strategic-analyzer] requestedBy=${requestedBy}, skipBudgetCheck=${skipBudgetCheck}`);
 
-	const modelInfo = getStrategicModel();
-	const lookbackHours = defaultConfig.analysis.strategic.lookbackHours || 168;
-	const maxSummaries = defaultConfig.analysis.strategic.maxSummariesInPrompt || 50;
-
-	// Query recent summary/strategic analyses
-	const summaries = [];
-	for await (const record of tables.siem_analysis_strategic.search({
-		select: ['id', 'createdAt', 'severity', 'analysis', 'totalEvents', 'totalDenies',
-			'flags', 'recommendations', 'campaignsDetected', 'triggerType'],
-		sort: { attribute: 'createdAt', descending: true },
-		limit: maxSummaries,
-	})) {
-		// Only include summaries within lookback window
-		const recordTime = new Date(record.createdAt).getTime();
-		const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
-		if (recordTime >= cutoff) {
-			summaries.push(record);
+	if (!skipBudgetCheck) {
+		const withinBudget = await checkBudget();
+		if (!withinBudget) {
+			console.warn('[strategic-analyzer] Budget cap reached, skipping');
+			return { _exitReason: 'budget_cap' };
 		}
 	}
 
-	if (summaries.length === 0) {
-		console.log('[strategic-analyzer] No summaries to analyze');
+	console.error('[strategic-analyzer] Budget check passed');
+
+	const modelInfo = getStrategicModel();
+	console.error(`[strategic-analyzer] Model: ${modelInfo.model}, tier: ${modelInfo.tier}`);
+
+	const lookbackHours = defaultConfig.analysis.strategic.lookbackHours || 168;
+	const maxSummaries = defaultConfig.analysis.strategic.maxSummariesInPrompt || 50;
+
+	// Query recent batch analyses within the lookback window
+	const cutoff = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+
+	// Stream batch analyses into a single context string
+	let batchCount = 0;
+	let batchIds = [];
+	let batchContext = '';
+	try {
+		for await (const record of tables.siem_analysis_batch.search({
+			select: ['id', 'analysis'],
+			sort: { attribute: 'createdAt', descending: true },
+			limit: maxSummaries,
+		})) {
+			batchCount++;
+			batchIds.push('' + record.id);
+			batchContext += `\n### Batch ${batchCount}\n${record.analysis}\n`;
+		}
+	} catch (searchErr) {
+		console.error(`[strategic-analyzer] Batch search FAILED: ${searchErr.message}`);
+		if (id) await tables.siem_analysis_strategic.patch(id, { status: 'failed', analysis: `Search error: ${searchErr.message}` });
 		return null;
 	}
 
-	const { system, user } = buildStrategicPrompt({ summaries, timeRange });
+	if (batchCount === 0) {
+		if (id) await tables.siem_analysis_strategic.patch(id, { status: 'failed', analysis: 'No batch analyses available in the selected time window.' });
+		return null;
+	}
+
+	// Prior strategic analyses for additional context
+	let priorContext = '';
+	try {
+		for await (const record of tables.siem_analysis_strategic.search({
+			select: ['analysis'],
+			conditions: [{ attribute: 'status', value: 'complete' }],
+			limit: 10,
+			sort: { attribute: 'createdAt', descending: true },
+		})) {
+			priorContext += `\n${record.analysis}\n`;
+		}
+	} catch {
+		// Optional context
+	}
+
+	const { system, user } = buildStrategicPrompt({ batchContext, priorContext, batchCount, timeRange });
 
 	try {
 		const response = await anthropic.messages.create({
@@ -70,7 +100,9 @@ export async function runStrategicAnalysis({ requestedBy, requestedByUserId, tim
 
 		let parsed;
 		try {
-			parsed = JSON.parse(analysisText);
+			const fenceMatch = analysisText.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+			const jsonText = fenceMatch ? fenceMatch[1].trim() : analysisText.trim();
+			parsed = JSON.parse(jsonText);
 		} catch {
 			parsed = {
 				analysis: analysisText,
@@ -80,44 +112,46 @@ export async function runStrategicAnalysis({ requestedBy, requestedByUserId, tim
 			};
 		}
 
-		const record = {
-			id: randomUUID(),
-			source: 'akamai-account-protector',
-			windowStart: summaries[summaries.length - 1]?.createdAt,
-			windowEnd: summaries[0]?.createdAt,
-			batchSummaryIds: summaries.map((s) => s.id),
-			batchSummaryCount: summaries.length,
-			triggerType: requestedBy ? 'on_demand' : 'scheduled',
-			requestedBy: requestedBy || null,
-			requestedByUserId: requestedByUserId || null,
-			timeRangeRequested: timeRange || null,
-			model: modelInfo.tier,
-			analysis: parsed.analysis || analysisText,
-			severity: parsed.severity || 'info',
-			flags: parsed.flags || [],
-			recommendations: parsed.recommendations || [],
-			totalEvents: summaries.reduce((sum, s) => sum + (s.totalEvents || 0), 0),
-			totalDenies: summaries.reduce((sum, s) => sum + (s.totalDenies || 0), 0),
-			totalAlerts: 0,
-			campaignsDetected: parsed.campaignsDetected || null,
-			policyEffectivenessNotes: parsed.policyEffectivenessNotes || '',
-			inputTokens: response.usage.input_tokens,
-			outputTokens: response.usage.output_tokens,
-			estimatedCostUSD: 0,
-		};
-
-		record.estimatedCostUSD = await trackUsage(
+		const estimatedCostUSD = await trackUsage(
 			modelInfo.tier,
 			response.usage.input_tokens,
 			response.usage.output_tokens,
 		);
 
-		await tables.siem_analysis_strategic.put(record);
-		console.log(`[strategic-analyzer] Strategic analysis complete: severity=${parsed.severity}`);
+		const updates = {
+			status: 'complete',
+			source: 'akamai-account-protector',
+			windowStart: cutoff,
+			windowEnd: new Date(),
+			batchSummaryIds: batchIds,
+			batchSummaryCount: batchCount,
+			model: modelInfo.tier,
+			analysis: parsed.analysis || analysisText,
+			severity: parsed.severity || 'info',
+			flags: parsed.flags || [],
+			recommendations: parsed.recommendations || [],
+			totalEvents: parsed.totalEvents || 0,
+			totalDenies: parsed.totalDenies || 0,
+			totalAlerts: parsed.totalAlerts || 0,
+			campaignsDetected: parsed.campaignsDetected || null,
+			policyEffectivenessNotes: parsed.policyEffectivenessNotes || '',
+			inputTokens: response.usage.input_tokens,
+			outputTokens: response.usage.output_tokens,
+			estimatedCostUSD,
+		};
 
-		return record;
+		if (id) {
+			await tables.siem_analysis_strategic.patch(id, updates);
+		} else {
+			updates.triggerType = 'scheduled';
+			await tables.siem_analysis_strategic.post(updates);
+		}
+		console.error(`[strategic-analyzer] Strategic analysis complete: severity=${parsed.severity}`);
+
+		return updates;
 	} catch (err) {
-		console.error('[strategic-analyzer] Analysis failed:', err.message);
-		return null;
+		console.error(`[strategic-analyzer] Analysis failed: ${err.message}\n${err.stack}`);
+		if (id) await tables.siem_analysis_strategic.patch(id, { status: 'failed', analysis: `Analysis error: ${err.message}` });
+		return { _exitReason: 'anthropic_error', error: err.message, stack: err.stack };
 	}
 }

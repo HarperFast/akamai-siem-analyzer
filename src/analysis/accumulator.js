@@ -12,9 +12,33 @@ export function getAccumulator() {
 class Accumulator {
 	constructor() {
 		this.reset();
-		this.baselineEventRate = 0; // Rolling 1-hour average events/minute
+		this.baselineEventRate = 0;
 		this.baselineWindow = [];
 		this.onTrigger = null;
+		this.configId = null;
+		this.timer = null;
+	}
+
+	startTimer() {
+		if (this.timer) return;
+		const intervalMs = (defaultConfig.analysis.batch.timeCeilingSeconds || 300) * 1000;
+		this.timer = setInterval(() => this.onTimerTick(), intervalMs);
+		console.log(`[accumulator] Timer started: ${intervalMs / 1000}s interval`);
+	}
+
+	stopTimer() {
+		if (this.timer) {
+			clearInterval(this.timer);
+			this.timer = null;
+		}
+	}
+
+	onTimerTick() {
+		if (this.eventCount > 0 && this.onTrigger && this.configId) {
+			const snapshot = this.getSnapshot('time_ceiling', this.configId);
+			this.reset();
+			this.onTrigger(snapshot);
+		}
 	}
 
 	reset() {
@@ -38,9 +62,13 @@ class Accumulator {
 		const now = new Date();
 		if (!this.windowStart) this.windowStart = now;
 		this.windowEnd = now;
+		this.configId = configId;
 
 		this.pollBatchIds.push(batchId);
 		this.eventCount += eventCount;
+
+		// Start the timer on first batch
+		this.startTimer();
 
 		// Update baseline tracking
 		this.baselineWindow.push({ time: now.getTime(), count: eventCount });
@@ -59,11 +87,11 @@ class Accumulator {
 			if (si.actions?.includes('monitor')) this.monitorCount++;
 		}
 
-		// Check trigger conditions
-		this.checkTrigger(configId);
+		// Check immediate trigger conditions (not time — timer handles that)
+		this.checkImmediateTriggers(configId);
 	}
 
-	checkTrigger(configId) {
+	checkImmediateTriggers(configId) {
 		const config = defaultConfig.analysis.batch;
 		const escalation = defaultConfig.analysis.escalation;
 
@@ -74,14 +102,6 @@ class Accumulator {
 			triggerReason = 'event_count';
 		}
 
-		// Time ceiling
-		if (this.windowStart && this.windowEnd) {
-			const durationSeconds = (this.windowEnd.getTime() - this.windowStart.getTime()) / 1000;
-			if (durationSeconds >= config.timeCeilingSeconds) {
-				triggerReason = triggerReason || 'time_ceiling';
-			}
-		}
-
 		// Severity escalation
 		const denyRatio = this.eventCount > 0 ? this.denyCount / this.eventCount : 0;
 		if (denyRatio >= escalation.denyRatioThreshold) {
@@ -90,7 +110,7 @@ class Accumulator {
 		}
 
 		// IP spike detection
-		if (this.baselineEventRate > 0) {
+		if (this.baselineEventRate > 0 && this.windowStart && this.windowEnd) {
 			const currentRate = this.eventCount / Math.max(1, (this.windowEnd - this.windowStart) / (1000 * 60));
 			if (currentRate > this.baselineEventRate * escalation.uniqueIPSpikeMultiplier) {
 				triggerReason = triggerReason || 'severity_escalation';

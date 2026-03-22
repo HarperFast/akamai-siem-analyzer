@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // We need to test the accumulator logic directly
@@ -11,11 +11,16 @@ describe('Accumulator', () => {
 
 	beforeEach(() => {
 		accumulator = getAccumulator();
+		accumulator.stopTimer();
 		accumulator.reset();
 		triggered = null;
 		accumulator.onTrigger = (snapshot) => {
 			triggered = snapshot;
 		};
+	});
+
+	afterEach(() => {
+		accumulator.stopTimer();
 	});
 
 	it('triggers on event_count threshold', () => {
@@ -32,8 +37,8 @@ describe('Accumulator', () => {
 		assert.equal(triggered.eventCount, 600);
 	});
 
-	it('triggers on time_ceiling', async () => {
-		// Add a small batch to set windowStart
+	it('triggers on time_ceiling via timer tick', () => {
+		// Add a batch to accumulate data
 		accumulator.addBatch({
 			batchId: 'batch-1',
 			configId: 'config-1',
@@ -41,17 +46,15 @@ describe('Accumulator', () => {
 			severityIndicators: [{ hasDeny: false, actions: ['monitor'], ruleCount: 1 }],
 		});
 
-		// Simulate time passing by manipulating windowStart
-		accumulator.windowStart = new Date(Date.now() - 400 * 1000); // 400s ago (ceiling is 300s)
+		assert.ok(!triggered, 'Should not trigger immediately');
 
-		accumulator.addBatch({
-			batchId: 'batch-2',
-			configId: 'config-1',
-			eventCount: 10,
-			severityIndicators: [{ hasDeny: false, actions: ['monitor'], ruleCount: 1 }],
-		});
+		// Simulate timer tick — should trigger since there is accumulated data
+		accumulator.onTimerTick();
 
-		assert.ok(triggered, 'Should have triggered on time ceiling');
+		assert.ok(triggered, 'Should have triggered on timer tick');
+		assert.equal(triggered.triggerReason, 'time_ceiling');
+		assert.equal(triggered.eventCount, 10);
+		assert.equal(accumulator.eventCount, 0, 'Should reset after trigger');
 	});
 
 	it('triggers severity_escalation on high deny ratio', () => {

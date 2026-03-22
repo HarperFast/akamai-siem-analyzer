@@ -13,12 +13,12 @@ You MUST respond with valid JSON in this exact format:
   "notablePatterns": ["array of attack pattern descriptions"]
 }
 
-Severity guidelines:
-- critical: Active exploit or credential stuffing campaign with deny actions
-- high: Coordinated attack pattern, high deny ratio, or multiple high-risk indicators
-- medium: Elevated suspicious activity, moderate deny ratio
-- low: Minor anomalies, mostly monitoring/alert actions
-- info: Normal traffic patterns, no significant findings
+Severity guidelines (use deny ratio as the primary signal):
+- critical: Deny ratio above 50% AND coordinated campaign indicators (IP clustering, repeated targets)
+- high: Deny ratio 30-50% OR coordinated attack pattern with multiple high-risk indicators
+- medium: Deny ratio 15-30% OR elevated suspicious activity with some deny actions
+- low: Deny ratio below 15%, mostly monitoring/alert actions, minor anomalies
+- info: No deny actions or negligible deny ratio, normal traffic patterns
 
 Use [ip::ADDRESS] syntax when referencing specific IPs so the UI can make them clickable.
 Use [event::ID] syntax when referencing specific events.

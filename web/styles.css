@@ -277,6 +277,13 @@ body {
 	line-height: 1.5;
 	color: var(--text-secondary);
 	margin-bottom: 8px;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	display: -webkit-box;
+	-webkit-line-clamp: 8;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .card-meta {
@@ -478,6 +485,24 @@ body {
 
 .btn-primary:hover {
 	background: rgba(88, 166, 255, 0.25);
+}
+
+.btn-ready {
+	background: rgba(63, 185, 80, 0.2);
+	border-color: #3fb950;
+	color: #3fb950;
+	animation: pulse-ready 1.5s ease-in-out infinite;
+}
+
+.btn-ready:hover {
+	background: rgba(63, 185, 80, 0.35);
+	border-color: #3fb950;
+	color: #3fb950;
+}
+
+@keyframes pulse-ready {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.7; }
 }
 
 .btn-logout {
