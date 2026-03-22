@@ -80,7 +80,12 @@ export async function getCostSummary() {
 	}
 
 	return {
-		...record,
+		date: record.date,
+		estimatedTotalUSD: record.estimatedTotalUSD || 0,
+		analysisCallCount: record.analysisCallCount || 0,
+		escalationCount: record.escalationCount || 0,
+		budgetWarningFired: record.budgetWarningFired || false,
+		budgetCapReached: record.budgetCapReached || false,
 		budgetRemainingUSD: Math.max(0, COST_CONFIG.dailyBudgetHardCapUSD - (record.estimatedTotalUSD || 0)),
 	};
 }

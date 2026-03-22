@@ -23,6 +23,8 @@ Akamai SIEM Analyzer ingests security event logs from **Akamai Account Protector
 ```mermaid
 flowchart TD
     A[Akamai SIEM API] -->|EdgeGrid Auth| B[Poller]
+    S[Simulation Generator] -->|SIMULATION_MODE| T[Sim-Poller]
+    T -->|Normalized Events| D
     B -->|NDJSON Stream| C[Decoder / Normalizer]
     C -->|Batch Insert| D[(siem_events)]
 
@@ -173,8 +175,67 @@ Resource URLs are **case-sensitive** and match the exported class name.
 | `/ExportStatus/{id}` | GET | analyst+ | Export status |
 | `/Config/{key}` | GET/PUT | admin | Read/update runtime configuration |
 | `/UserPicture/{userId}` | GET | analyst+ | User avatar blob |
+| `/Simulation/status` | GET | sim mode | Auto-generator state and pending events |
+| `/Simulation/auto-start` | POST | sim mode | Start continuous event generation |
+| `/Simulation/auto-stop` | POST | sim mode | Stop the auto-generator |
+| `/Simulation/generate` | POST | sim mode | Generate a one-shot event batch |
+| `/Simulation/clear` | POST | sim mode | Delete pending simulated events |
 | `/oauth/google/login` | GET | public | Initiate Google OAuth login |
 | `/oauth/google/callback` | GET | public | OAuth callback (handled by plugin) |
+
+## Simulation Mode
+
+Run the full analysis pipeline without Akamai credentials — ideal for demos, testing, and development.
+
+### Quick Start
+
+1. Set `SIMULATION_MODE=true` in `.env` (no Akamai credentials needed, `ANTHROPIC_API_KEY` still required)
+2. Start the server: `npm run dev` or `npm run deploy`
+3. Log in via the dashboard
+4. Start event generation:
+
+```sh
+# Start the auto-generator (credential stuffing escalation scenario)
+curl -X POST http://localhost:9926/Simulation/auto-start \
+  -H "Content-Type: application/json" \
+  -d '{"intervalSeconds": 25, "eventsPerCycle": 10, "scenario": "credential_stuffing"}'
+```
+
+Events will flow through the standard pipeline: simulated events → normalizer → accumulator → AI analysis. Batch analysis triggers every ~30 seconds in simulation mode (vs 5 minutes in production).
+
+### Simulation API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/Simulation/status` | GET | Auto-generator state and pending event count |
+| `/Simulation/auto-start` | POST | Start continuous event generation |
+| `/Simulation/auto-stop` | POST | Stop the auto-generator |
+| `/Simulation/generate` | POST | Generate a one-shot batch of events |
+| `/Simulation/clear` | POST | Delete all pending simulated events |
+
+### Attack Scenarios
+
+| Scenario | Description |
+|----------|-------------|
+| `credential_stuffing` | Login endpoint attacks with persistent botnet IPs (default, auto-escalates over ~20 min) |
+| `sqli` | SQL injection attempts on API endpoints |
+| `xss` | Cross-site scripting with script tags and event handlers |
+| `path_traversal` | Directory traversal attempts (`../`, `/etc/passwd`) |
+| `bot_scanner` | Automated scanning (robots.txt, .git, wp-admin) |
+| `clean` | Normal traffic with no violations |
+| `mixed` / `light` / `heavy` / `peak` | Weighted blends of the above at varying intensities |
+
+### Escalation Timeline (credential_stuffing)
+
+The auto-generator progresses through 5 phases to simulate a realistic attack:
+
+| Phase | Time | Intensity | What happens |
+|-------|------|-----------|--------------|
+| 1 | 0–3 min | Light | Background traffic, low deny ratio |
+| 2 | 3–7 min | Mixed | First probes, deny ratio climbs |
+| 3 | 7–15 min | Heavy | Full campaign, 1.5x event volume |
+| 4 | 15–20 min | Peak | Maximum intensity, 2x volume |
+| 5 | 20+ min | Taper | Attack subsides, elevated baseline |
 
 ## Cost Management
 
@@ -191,10 +252,13 @@ AI analysis costs are tracked per-model in the `siem_cost_tracking` table:
 npm test
 ```
 
-Tests cover:
+53 tests covering:
 - Attack data decoding (base64, URL encoding, malformed input, `+` preservation)
 - Event normalization (field mapping, deterministic ID generation)
 - Accumulator trigger logic (event count, time ceiling, severity escalation)
+- Simulation event generator (structure, scenarios, campaign IPs, score ranges)
+- Auto-generator escalation phases (timing, transitions, event count scaling)
+- Cost calculation (per-model pricing, budget thresholds, spend derivation)
 
 ## Deployment
 
