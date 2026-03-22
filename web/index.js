@@ -96,7 +96,8 @@ async function loadHealth() {
 		badge.className = `health-badge ${health.poller?.status === 'active' ? 'health-ok' : 'health-warn'}`;
 
 		const cost = document.getElementById('cost-indicator');
-		const todayUSD = health.cost?.todayUSD || 0;
+		const budgetCap = 10; // matches config.cost.dailyBudgetHardCapUSD
+		const todayUSD = health.cost?.todayUSD || (budgetCap - (health.cost?.budgetRemainingUSD ?? budgetCap));
 		cost.textContent = todayUSD >= 0.01 ? `$${todayUSD.toFixed(2)}` : `$${todayUSD.toFixed(4)}`;
 		cost.title = `Today's AI cost: $${todayUSD.toFixed(4)} | Analyses: ${health.cost?.analysisCount || 0}`;
 		if (health.cost?.budgetCapReached) {
