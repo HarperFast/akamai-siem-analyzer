@@ -15,7 +15,10 @@ accumulator.onTrigger = async (snapshot) => {
 };
 
 // Start all background processes
-if (process.env.AKAMAI_CONFIG_ID) {
+if (process.env.SIMULATION_MODE === 'true') {
+	const { startSimPoller } = await import('../src/simulation/sim-poller.js');
+	startSimPoller();
+} else if (process.env.AKAMAI_CONFIG_ID) {
 	startPoller();
 }
 
