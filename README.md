@@ -272,7 +272,3 @@ npm run deploy
 ```
 
 The deploy script uses `dotenv` to load `.env` and runs `harper deploy_component` with rolling restart and replication enabled.
-
-## License
-
-Private — HarperFast
