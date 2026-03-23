@@ -23,17 +23,18 @@ Resource URLs are **case-sensitive** and match the **exported class name**, not 
 
 ### File Layout
 
-- `resources/api.js` — Custom Resource classes (`Api`, `Analysis`, `Events`, `EventBatch`, `ExportStatus`, `Config`, `UserPicture`)
+- `resources/api.js` — Custom Resource classes (`Api`, `Analysis`, `Events`, `EventBatch`, `ExportStatus`, `Config`, `UserPicture`). Includes `/Api/batch-volume` endpoint for sparkline data.
 - `resources/simulation.js` — Simulation mode REST API (`/Simulation/{action}`)
 - `resources/lifecycle.js` — Background process startup (chooses sim-poller or real poller)
 - `resources/tables.js` — Table resource classes with `allowRead`/`allowCreate`/etc. access control
 - `resources/auth.js` — OAuth `onLogin` hook (user provisioning, avatar blob)
 - `schemas/schema.graphql` — All table definitions
 - `src/ingestion/` — Akamai SIEM API poller, decoder, normalizer, accumulator
-- `src/analysis/` — Batch, summary, and strategic analyzers
+- `src/analysis/` — Batch, summary, and strategic analyzers. Strategic analysis uses structured batch summaries + pre-computed trends (not raw prose) for token efficiency.
 - `src/simulation/` — Simulation mode: event generator, auto-generator, sim-poller
 - `src/utils/` — Cost tracker, config loader
-- `web/` — Static dashboard (login widget pattern)
+- `web/` — Static dashboard (login widget pattern). Includes dual-line sparkline (event volume + deny count) in header.
+- `web/sparkline.js` — SVG sparkline renderer (pure JS, no dependencies)
 - `config.yaml` — Harper component config
 
 ### Authentication
@@ -62,6 +63,7 @@ These are available as globals in the Harper runtime — do NOT import them:
 
 - Do NOT spread Harper records (`{ ...record }`) — they are proxy objects and spread will lose data
 - Always explicitly read each field you need: `{ field: record.field, ... }`
+- Do NOT store Harper proxy values (e.g., `record.createdAt`) directly into other records — extract plain values first to avoid recursive proxy getter issues (`Maximum call stack size exceeded`)
 - Use `Table.get(id)` for single record, `Table.patch(id, partial)` for partial updates
 
 ### Table Resource Search
@@ -129,4 +131,4 @@ Required in `.env`:
 
 ## Testing
 
-Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). 53 tests covering decoder, normalizer, accumulator, simulation generator, auto-generator escalation, and cost calculation. No API/auth integration tests yet.
+Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). 65 tests covering decoder, normalizer, accumulator, simulation generator, auto-generator escalation, cost calculation, strategic trend computation, and strategic prompt construction. No API/auth integration tests yet.

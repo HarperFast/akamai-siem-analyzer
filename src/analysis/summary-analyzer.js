@@ -31,7 +31,7 @@ export async function runSummaryAnalysis() {
 	const modelInfo = getSummaryModel();
 	const maxSummaries = defaultConfig.analysis.summary.maxBatchSummaries || 20;
 
-	// Query recent batch analyses
+	// Query recent batch analyses — extract plain values from Harper proxy records
 	const batchAnalyses = [];
 	for await (const record of tables.siem_analysis_batch.search({
 		select: ['id', 'createdAt', 'severity', 'analysis', 'eventCount', 'denyCount',
@@ -40,7 +40,25 @@ export async function runSummaryAnalysis() {
 		sort: { attribute: 'createdAt', descending: true },
 		limit: maxSummaries,
 	})) {
-		batchAnalyses.push(record);
+		batchAnalyses.push({
+			id: record.id,
+			createdAt: record.createdAt,
+			severity: record.severity,
+			analysis: record.analysis,
+			eventCount: record.eventCount,
+			denyCount: record.denyCount,
+			uniqueIPs: record.uniqueIPs,
+			topIPs: record.topIPs,
+			topPaths: record.topPaths,
+			topCountries: record.topCountries,
+			flags: record.flags,
+			notableIPs: record.notableIPs,
+			notablePatterns: record.notablePatterns,
+			avgBotScore: record.avgBotScore,
+			avgUserRiskScore: record.avgUserRiskScore,
+			denyRatio: record.denyRatio,
+			modelUsed: record.modelUsed,
+		});
 	}
 
 	if (batchAnalyses.length === 0) {

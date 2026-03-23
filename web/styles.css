@@ -131,6 +131,17 @@ body {
 	color: var(--severity-medium);
 }
 
+.sparkline-container {
+	width: 200px;
+	height: 40px;
+	display: flex;
+	align-items: center;
+}
+
+.sparkline-container svg {
+	display: block;
+}
+
 .cost-indicator {
 	font-size: 13px;
 	color: var(--text-secondary);

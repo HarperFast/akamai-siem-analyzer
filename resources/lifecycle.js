@@ -1,7 +1,6 @@
 import { startPoller, stopPoller } from '../src/ingestion/poller.js';
 import { getAccumulator } from '../src/analysis/accumulator.js';
 import { analyzeBatch } from '../src/analysis/batch-analyzer.js';
-import { startSummaryScheduler, stopSummaryScheduler } from '../src/analysis/summary-analyzer.js';
 import { startStrategicScheduler, stopStrategicScheduler } from '../src/analysis/strategic-analyzer.js';
 
 // Wire accumulator to batch analyzer
@@ -23,19 +22,16 @@ if (process.env.SIMULATION_MODE === 'true') {
 }
 
 if (process.env.ANTHROPIC_API_KEY) {
-	startSummaryScheduler();
 	startStrategicScheduler();
 }
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
 	stopPoller();
-	stopSummaryScheduler();
 	stopStrategicScheduler();
 });
 
 process.on('SIGINT', () => {
 	stopPoller();
-	stopSummaryScheduler();
 	stopStrategicScheduler();
 });
