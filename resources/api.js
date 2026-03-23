@@ -139,6 +139,25 @@ export class Api extends Resource {
 			}
 		}
 
+		if (path === 'batch-volume') {
+			requireAuth(context);
+			const limit = Math.min(parseInt(target?.limit) || 30, 100);
+			const points = [];
+			for await (const record of tables.siem_analysis_batch.search({
+				select: ['createdAt', 'eventCount', 'denyCount', 'severity'],
+				sort: { attribute: 'createdAt', descending: true },
+				limit,
+			})) {
+				points.push({
+					time: record.createdAt,
+					eventCount: record.eventCount,
+					denyCount: record.denyCount,
+					severity: record.severity,
+				});
+			}
+			return points.reverse(); // chronological order
+		}
+
 		return { error: 'Not found' };
 	}
 

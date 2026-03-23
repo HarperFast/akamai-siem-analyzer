@@ -1,6 +1,6 @@
-export function buildStrategicPrompt({ batchContext, priorContext, batchCount, timeRange }) {
+export function buildStrategicPrompt({ batchSummaries, trends, notableBatches, priorAnalysis, batchCount, timeRange }) {
 	const system = `You are a chief security analyst AI providing strategic-level security assessments.
-You analyze batch-level analysis reports from Akamai Account Protector and Bot Manager Premier to produce executive-level strategic analysis.
+You analyze structured batch-level data from Akamai Account Protector and Bot Manager Premier to produce executive-level strategic analysis.
 
 You MUST respond with valid JSON in this exact format:
 {
@@ -24,6 +24,7 @@ Focus on:
 - Predictive indicators (what to watch for next)
 - Patterns that individual batch analyses might miss when viewed in isolation
 
+Use the pre-computed trends to validate your own observations and identify anomalies.
 Provide actionable, specific recommendations suitable for presentation to security leadership.
 Never include raw credentials, tokens, or sensitive data.`;
 
@@ -35,14 +36,36 @@ Never include raw credentials, tokens, or sensitive data.`;
 
 ${timeRangeStr}
 
-## Batch Analyses
-${batchContext}`;
+## Batch Summary Table
+${JSON.stringify(batchSummaries, null, 1)}
 
-	if (priorContext) {
-		userPrompt += `
+## Pre-Computed Trends
+### Severity Distribution
+${JSON.stringify(trends.severityCounts)}
 
-## Prior Strategic Analyses (for context — build on these, don't repeat them)
-${priorContext}`;
+### Deny Ratio Over Time (chronological)
+${JSON.stringify(trends.denyRatioTrend, null, 1)}
+
+### Persistent IPs (appearing in 2+ batches)
+${trends.persistentIPs.length > 0 ? JSON.stringify(trends.persistentIPs) : 'None detected'}
+
+### Top Attack Types (aggregated rule tags)
+${trends.topRuleTags.length > 0 ? JSON.stringify(trends.topRuleTags) : 'None detected'}
+
+### Geographic Distribution
+${trends.topCountries.length > 0 ? JSON.stringify(trends.topCountries) : 'No data'}`;
+
+	if (notableBatches.length > 0) {
+		userPrompt += `\n\n## Notable Batch Details (high/critical severity only)`;
+		for (const b of notableBatches) {
+			userPrompt += `\n### ${b.severity.toUpperCase()} — ${b.time}\n${b.analysis}`;
+			if (b.notableIPs?.length) userPrompt += `\nNotable IPs: ${b.notableIPs.join(', ')}`;
+			if (b.notablePatterns?.length) userPrompt += `\nPatterns: ${b.notablePatterns.join(', ')}`;
+		}
+	}
+
+	if (priorAnalysis) {
+		userPrompt += `\n\n## Most Recent Strategic Assessment (for continuity — build on this, don't repeat it)\n${priorAnalysis}`;
 	}
 
 	return { system, user: userPrompt };

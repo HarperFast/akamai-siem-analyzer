@@ -10,9 +10,8 @@ Akamai SIEM Analyzer ingests security event logs from **Akamai Account Protector
 
 - **Continuous ingestion** via Akamai SIEM API with offset-based polling and automatic recovery
 - **Tiered AI analysis** with adaptive model escalation:
-  - **Tier 1 (Haiku)**: Per-batch analysis with severity classification
-  - **Tier 2 (Sonnet)**: Hourly cross-batch trend summaries
-  - **Tier 3 (Opus)**: Daily strategic assessments and campaign detection
+  - **Batch analysis (Haiku → Sonnet)**: Per-batch severity classification, escalates to Sonnet when severity indicators are present
+  - **Strategic analysis (Opus)**: On-demand or scheduled cross-batch trend analysis and campaign detection
 - **Adaptive triggering**: Analysis triggers based on event count, time ceiling, or severity escalation
 - **Cluster-safe**: Lease-based leader election ensures single-writer polling across Harper cluster nodes
 - **Cost management**: Per-model token tracking with daily budget warnings and hard caps
@@ -31,13 +30,13 @@ flowchart TD
     D --> E[Accumulator]
     E -->|Event Count / Time / Severity| F{Trigger?}
 
-    F -->|Yes| G[Tier 1: Haiku Batch Analysis]
-    G -->|Severity Escalation?| H[Tier 2: Sonnet Summary]
-    H -->|Scheduled / On-Demand| I[Tier 3: Opus Strategic]
+    F -->|Yes| G[Batch Analysis: Haiku]
+    G -->|Severity Escalation| G2[Batch Analysis: Sonnet]
+    G -->|Scheduled / On-Demand| I[Strategic Analysis: Opus]
 
     G --> J[(siem_analysis_batch)]
-    H --> K[(siem_analysis_strategic)]
-    I --> K
+    G2 --> J
+    I --> K[(siem_analysis_strategic)]
 
     J --> L[API Routes]
     K --> L
@@ -54,7 +53,7 @@ flowchart TD
 
 1. **Ingestion**: The poller fetches events from Akamai's SIEM API using EdgeGrid authentication, decodes base64-encoded attack data, normalizes fields, and batch-inserts into Harper with deterministic IDs for idempotent upserts.
 
-2. **Analysis**: An accumulator buffers event metadata across poll cycles. When thresholds are crossed (event count, time ceiling, or severity escalation), batch analysis runs via Haiku. If severity indicators are elevated, the model escalates to Sonnet. Hourly summaries (Sonnet) and daily strategic assessments (Opus) run on schedule.
+2. **Analysis**: An accumulator buffers event metadata across poll cycles. When thresholds are crossed (event count, time ceiling, or severity escalation), batch analysis runs via Haiku. If severity indicators are elevated, the batch model escalates to Sonnet. Strategic analysis (Opus) runs on a daily schedule or on-demand from the dashboard, consuming structured batch summaries and pre-computed trends for cross-batch pattern detection.
 
 3. **Delivery**: The dashboard polls API endpoints to display severity-colored analysis cards with clickable IP and event references. Analysts can drill down into individual events, query by IP/path/country, and trigger on-demand strategic analysis.
 
@@ -150,7 +149,6 @@ Runtime defaults are in `config/default.json`. Key tunables:
 | `ingestion.pollIntervalSeconds` | 30 | Seconds between poll cycles |
 | `analysis.batch.eventCountThreshold` | 500 | Events before triggering batch analysis |
 | `analysis.batch.timeCeilingSeconds` | 300 | Max seconds before forcing analysis |
-| `analysis.summary.intervalMinutes` | 60 | Summary analysis interval |
 | `analysis.strategic.intervalHours` | 24 | Strategic analysis interval |
 | `cost.dailyBudgetWarningUSD` | 5.00 | Daily cost warning threshold |
 | `cost.dailyBudgetHardCapUSD` | 10.00 | Daily cost hard cap (halts analysis, not ingestion) |
@@ -252,13 +250,14 @@ AI analysis costs are tracked per-model in the `siem_cost_tracking` table:
 npm test
 ```
 
-53 tests covering:
+65 tests covering:
 - Attack data decoding (base64, URL encoding, malformed input, `+` preservation)
 - Event normalization (field mapping, deterministic ID generation)
 - Accumulator trigger logic (event count, time ceiling, severity escalation)
 - Simulation event generator (structure, scenarios, campaign IPs, score ranges)
 - Auto-generator escalation phases (timing, transitions, event count scaling)
 - Cost calculation (per-model pricing, budget thresholds, spend derivation)
+- Strategic trend computation and prompt construction
 
 ## Deployment
 

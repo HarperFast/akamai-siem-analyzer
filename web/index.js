@@ -1,5 +1,6 @@
 import { initStream, refreshStream } from './stream.js';
 import { openLightbox, closeLightbox } from './lightbox.js';
+import { renderSparkline } from './sparkline.js';
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
@@ -11,10 +12,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 	document.getElementById('dashboard-view').style.display = 'flex';
 
 	await loadHealth();
+	await loadSparkline();
 	initStream();
 
-	// Refresh health every 30s
+	// Refresh health + sparkline every 30s
 	setInterval(loadHealth, 30000);
+	setInterval(loadSparkline, 30000);
 
 	// Severity filter
 	document.getElementById('severity-filter').addEventListener('change', (e) => {
@@ -105,6 +108,22 @@ async function loadHealth() {
 		}
 	} catch (e) {
 		// Ignore
+	}
+}
+
+async function loadSparkline() {
+	try {
+		const res = await fetch('/Api/batch-volume');
+		if (!res.ok) return;
+		const points = await res.json();
+		if (!Array.isArray(points) || points.length === 0) return;
+		const container = document.getElementById('sparkline');
+		renderSparkline(container, {
+			events: points.map((p) => p.eventCount || 0),
+			denies: points.map((p) => p.denyCount || 0),
+		});
+	} catch {
+		// Ignore — sparkline is non-critical
 	}
 }
 
